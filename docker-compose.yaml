@@ -1,0 +1,71 @@
+name: mlops_handson
+services:
+  minio_mlops:
+    image: quay.io/minio/minio:latest
+    container_name: mlops_minio
+    volumes:
+      - ./minio/data:/home/data
+      - ./minio/certs:/home/certs
+    ports:
+      - ${MINIO_PORT}:9000
+      - ${MINIO_CONSOLE_PORT}:443
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - MINIO_ADRRESS=${MINIO_ADDRESS}
+      - MINIO_CONSOLE_ADDRESS=${MINIO_CONSOLE_ADDRESS}
+      - MINIO_PORT=${MINIO_PORT}
+      - MINIO_STORAGE_USE_HTTPS=${MINIO_STORAGE_USE_HTTPS}
+    command: server ${MINIO_DATA_DIR} --certs-dir ${MINIO_CERT_DIR}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://minio_mlops:${MINIO_PORT}/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+  
+  postgres_mlops:
+    image: postgres:latest
+    container_name: mlops_postgres
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - ${POSTGRES_PORT}:${POSTGRES_PORT_CONTAINER}
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DATABASE=${POSTGRES_DATABASE}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-p", "${POSTGRES_PORT}", "-U", "${POSTGRES_USER}", "${POSTGRES_DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 3
+
+  mlflow_mlops:
+    restart: unless-stopped
+    build: ./mlflow
+    image: mlflow_mlops
+    container_name: mlflow_mlops
+    depends_on:
+      - postgres_mlops
+      - minio_mlops
+    ports:
+      - ${MLFLOW_PORT}:5000
+    environment:
+      - AWS_ACCESS_KEY_ID=${MLFLOW_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${MLFLOW_SECRET_ACCESS_KEY}
+      - MLFLOW_S3_ENDPOINT_URL=${MLFLOW_S3_ENDPOINT_URL}
+      - MLFLOW_S3_IGNORE_TLS=${MLFLOW_S3_IGNORE_TLS}
+    command: >
+      mlflow server
+      --host 0.0.0.0
+      --serve-artifacts
+      --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres_mlops:${POSTGRES_PORT_CONTAINER}/${POSTGRES_DATABASE}
+      --artifacts-destination s3://${MLFLOW_BUCKET_NAME}
+      --default-artifact-root s3://${MLFLOW_BUCKET_NAME}/artifacts
+    healthcheck:
+      test: ["CMD","curl","-f","http://mlflow_mlops:${MLFLOW_PORT}/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+
