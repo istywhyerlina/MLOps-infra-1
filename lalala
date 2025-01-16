@@ -62,7 +62,7 @@ services:
     volumes:
       - ${MLFLOW_HOST_CONFIG_PATH}:${MLFLOW_AUTH_CONFIG_PATH}
     command: >
-      mlflow server --app-name basic-auth   
+      mlflow server --app-name basic-auth
       --host 0.0.0.0 
       --serve-artifacts
       --backend-store-uri postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres_mlops:${POSTGRES_PORT_CONTAINER}/${POSTGRES_DATABASE}
