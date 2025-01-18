@@ -3,6 +3,8 @@ services:
   minio_mlops:
     image: quay.io/minio/minio:latest
     container_name: mlops_minio
+    depends_on:
+      - postgres_mlops
     volumes:
       - ./minio/data:/home/data
       - ./minio/certs:/home/certs
